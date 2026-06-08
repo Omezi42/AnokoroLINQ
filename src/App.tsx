@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ref, set, onValue, get, update, remove } from 'firebase/database';
+import { ref, set, onValue, get, update, remove, onDisconnect } from 'firebase/database';
 import { db } from './firebase';
 import type { Room, Player, GameMode } from './types';
 import { Lobby } from './components/Lobby';
@@ -20,7 +20,7 @@ const generateRoomCode = (): string => {
   return result;
 };
 
-// ユーザーIDの取得または生成 (LocalStorageに保存)
+// ユーザーID of 取得または生成 (LocalStorageに保存)
 const getOrCreateUserId = (): string => {
   let userId = localStorage.getItem('anokoro_linq_user_id');
   if (!userId) {
@@ -36,6 +36,25 @@ function App() {
   const [roomCode, setRoomCode] = useState<string>('');
   const [room, setRoom] = useState<Room | null>(null);
   const [isJoining, setIsJoining] = useState<boolean>(false);
+
+  // 接続状態の監視と自動切断処理 (onDisconnect)
+  useEffect(() => {
+    if (!roomCode || !userId) return;
+
+    const myConnectionRef = ref(db, `rooms/${roomCode}/players/${userId}/isConnected`);
+    
+    // 入室時にオンラインに設定
+    set(myConnectionRef, true);
+
+    // 切断時に自動でオフラインに設定
+    const disconnectRef = onDisconnect(myConnectionRef);
+    disconnectRef.set(false);
+
+    return () => {
+      // 部屋から正常に退出する場合は onDisconnect 処理をキャンセル
+      disconnectRef.cancel();
+    };
+  }, [roomCode, userId]);
 
   // 部屋のデータを購読
   useEffect(() => {
@@ -59,21 +78,11 @@ function App() {
     return () => unsubscribe();
   }, [roomCode]);
 
-  // 投票が全員完了したかをホストが監視して、結果画面に遷移する処理
-  useEffect(() => {
-    if (!room || room.status !== 'playing' || !room.gameFlow) return;
-    
-    // 全員のヒントが埋まっているか？（安全策として、ヒントが揃ったら投票画面に行くのはゲーム進行ロジックで制御している）
-    // ここでは 'voting' ステータスにおいて、全員の投票が完了したかを監視
-  }, [room]);
-
   // ホストが結果画面に遷移した時にスコア計算を行う
   useEffect(() => {
     if (!room || room.status !== 'results' || !room.gameFlow || room.hostId !== userId) return;
     
     // すでにこの結果フェーズでスコア計算が済んでいる場合はスキップ
-    // Firebase側で rooms/roomCode/scoreCalculated が true なら実行しない
-    // (onValueの複数回発火から保護するため、Realtime Databaseのトランザクションを使用)
     const scoreCalcRef = ref(db, `rooms/${room.id}/scoreCalculated`);
     get(scoreCalcRef).then((snapshot) => {
       if (snapshot.val() === true) return;
@@ -129,10 +138,12 @@ function App() {
     if (!room || room.status !== 'voting' || room.hostId !== userId) return;
 
     const players = Object.values(room.players || {});
-    // 接続している全プレイヤーが投票を終えているか？
-    const allVoted = players.every(p => p.vote && p.vote.player1 && p.vote.player2);
+    
+    // 接続中の全プレイヤーが投票を終えているか？
+    const activePlayers = players.filter(p => p.isConnected !== false);
+    const allVoted = activePlayers.every(p => p.vote && p.vote.player1 && p.vote.player2);
 
-    if (allVoted && players.length >= 4) {
+    if (allVoted && activePlayers.length >= 4) {
       update(ref(db, `rooms/${room.id}`), {
         status: 'results'
       });
@@ -257,8 +268,11 @@ function App() {
     if (!room || room.hostId !== userId) return;
 
     const players = Object.values(room.players || {});
-    if (players.length < 4) {
-      alert("ゲームを開始するには4人以上のプレイヤーが必要です。");
+    
+    // 接続中のプレイヤー数をチェック
+    const activePlayers = players.filter(p => p.isConnected !== false);
+    if (activePlayers.length < 4) {
+      alert("接続中のプレイヤーが4人以上必要です。");
       return;
     }
 
@@ -273,13 +287,14 @@ function App() {
       secretWord = cleanCards[Math.floor(Math.random() * cleanCards.length)];
     }
 
-    // 2. リンクペアの決定 (ランダムに2名)
-    const shuffledPlayerIds = players.map(p => p.id).sort(() => Math.random() - 0.5);
+    // 2. リンクペアの決定 (接続中プレイヤーからランダムに2名)
+    const shuffledPlayerIds = activePlayers.map(p => p.id).sort(() => Math.random() - 0.5);
     const linkPairs = [shuffledPlayerIds[0], shuffledPlayerIds[1]];
 
     // 3. プレイヤーの初期設定オブジェクト
     const updatedPlayers: Record<string, Player> = {};
     players.forEach((p) => {
+      // 接続が切れているプレイヤーはスコアのみ維持して初期化
       const isLink = linkPairs.includes(p.id);
       updatedPlayers[p.id] = {
         ...p,
@@ -290,7 +305,7 @@ function App() {
       };
     });
 
-    // 4. 手番順の決定 (シャッフル)
+    // 4. 手番順の決定 (接続中プレイヤーをシャッフル)
     const turnOrder = [...shuffledPlayerIds];
 
     // DB更新

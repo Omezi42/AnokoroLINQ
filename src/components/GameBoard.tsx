@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Room, Player } from '../types';
-import { CARD_NAMES } from '../cardData';
-import { Send, Search, HelpCircle, Eye, EyeOff, User } from 'lucide-react';
+import { CARDS, CARD_NAMES } from '../cardData';
+import { Send, Search, HelpCircle, Eye, EyeOff, User, Tag } from 'lucide-react';
 
 interface GameBoardProps {
   room: Room;
   currentPlayerId: string;
   onSubmitHint: (hint: string) => void;
 }
+
+const MAJOR_TYPES = ["火", "水", "風", "地", "光", "闇", "雷", "ドラゴン", "ゴブリン", "ゾンビ", "機械", "魚", "虫", "鳥", "妖精", "騎士"];
 
 export const GameBoard: React.FC<GameBoardProps> = ({
   room,
@@ -26,10 +28,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   // UI States
   const [hintInput, setHintInput] = useState('');
   const [showWord, setShowWord] = useState(true);
+  const [selectedType, setSelectedType] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<string[]>([]);
   const [showResults, setShowResults] = useState(false);
   
   const searchRef = useRef<HTMLDivElement>(null);
+  const timelineEndRef = useRef<HTMLDivElement>(null);
 
   // モード別表示用のテキスト
   const modeText = 
@@ -39,18 +43,35 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
   // カード検索（モード2・3用）
   useEffect(() => {
-    if (settings.mode === 1 || !hintInput.trim()) {
+    if (settings.mode === 1) {
       setSearchResults([]);
       return;
     }
-    const query = hintInput.toLowerCase();
-    const filtered = CARD_NAMES.filter(name => 
-      name.toLowerCase().includes(query) && 
-      name !== "NotFound" && 
-      name !== "VOID"
-    ).slice(0, 10); // 最大10件表示
-    setSearchResults(filtered);
-  }, [hintInput, settings.mode]);
+
+    let filtered = CARDS;
+
+    // タイプで絞り込み
+    if (selectedType) {
+      filtered = filtered.filter(card => card.types.includes(selectedType));
+    }
+
+    // クエリで絞り込み
+    const query = hintInput.trim().toLowerCase();
+    if (query) {
+      filtered = filtered.filter(card => 
+        card.name.toLowerCase().includes(query) && 
+        card.name !== "NotFound" && 
+        card.name !== "VOID"
+      );
+    } else if (!selectedType) {
+      // 検索語もタイプ指定もない場合は表示しない
+      setSearchResults([]);
+      return;
+    }
+
+    // 表示上限を30件にして探しやすくする
+    setSearchResults(filtered.map(c => c.name).slice(0, 30));
+  }, [hintInput, selectedType, settings.mode]);
 
   // ドロップダウンの外側をクリックした時に閉じる
   useEffect(() => {
@@ -62,6 +83,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // 新しいヒント受信時にタイムラインの末尾にスクロール
+  useEffect(() => {
+    timelineEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [players]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,12 +104,22 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
     onSubmitHint(finalHint);
     setHintInput('');
+    setSelectedType(null);
     setShowResults(false);
   };
 
   const handleSelectCard = (cardName: string) => {
     setHintInput(cardName);
     setShowResults(false);
+  };
+
+  const handleToggleType = (type: string) => {
+    if (selectedType === type) {
+      setSelectedType(null);
+    } else {
+      setSelectedType(type);
+      setShowResults(true); // タグ選択時に結果を開く
+    }
   };
 
   // タイムライン用の並び順（turnOrderに従う）
@@ -160,9 +196,14 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             >
               <div className="player-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <User size={14} style={{ color: p.id === currentPlayerId ? 'var(--color-secondary)' : 'var(--text-muted)' }} />
-                <span style={{ color: p.id === currentPlayerId ? 'var(--color-secondary)' : 'inherit' }}>
+                <span style={{ color: p.id === currentPlayerId ? 'var(--color-secondary)' : 'inherit', fontWeight: p.id === currentPlayerId ? 700 : 500 }}>
                   {p.name}
                 </span>
+                {p.isConnected === false && (
+                  <span style={{ fontSize: '0.7rem', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', padding: '1px 4px', borderRadius: '4px', marginLeft: '6px', fontWeight: 'bold' }}>
+                    OFFLINE
+                  </span>
+                )}
               </div>
               
               {/* 第1ラウンドヒント */}
@@ -177,6 +218,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             </div>
           );
         })}
+        <div ref={timelineEndRef} />
       </div>
 
       {/* 入力フォーム */}
@@ -206,12 +248,42 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             ) : (
               // カード名検索用のUI
               <div className="search-container" ref={searchRef}>
+                {/* タイプフィルタータグ */}
+                <div style={{ marginBottom: '12px', textAlign: 'left' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '6px' }}>
+                    <Tag size={12} />
+                    タイプ・種族で絞り込む:
+                  </span>
+                  <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '6px', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch' }}>
+                    {MAJOR_TYPES.map(type => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => handleToggleType(type)}
+                        style={{
+                          padding: '4px 10px',
+                          fontSize: '0.75rem',
+                          borderRadius: '999px',
+                          border: '1px solid',
+                          borderColor: selectedType === type ? 'var(--color-primary)' : 'rgba(255,255,255,0.1)',
+                          background: selectedType === type ? 'var(--color-primary-glow)' : 'transparent',
+                          color: selectedType === type ? 'var(--color-primary)' : 'var(--text-muted)',
+                          cursor: 'pointer',
+                          fontWeight: selectedType === type ? 'bold' : 'normal'
+                        }}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <div style={{ position: 'relative', flex: 1 }}>
                     <Search size={18} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
                     <input
                       type="text"
-                      placeholder="カード名を入力して検索..."
+                      placeholder={selectedType ? `[${selectedType}] のカード名を入力して検索...` : "カード名を入力して検索..."}
                       value={hintInput}
                       onChange={(e) => {
                         setHintInput(e.target.value);
@@ -219,7 +291,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                       }}
                       onFocus={() => setShowResults(true)}
                       style={{ paddingLeft: '44px' }}
-                      required
+                      required={!selectedType}
                     />
                   </div>
                   <button type="submit" className="primary">
@@ -241,7 +313,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     ))}
                   </div>
                 )}
-                {showResults && hintInput.trim() !== '' && searchResults.length === 0 && (
+                {showResults && (hintInput.trim() !== '' || selectedType !== null) && searchResults.length === 0 && (
                   <div className="search-results" style={{ padding: '12px', color: 'var(--color-accent)', fontSize: '0.85rem' }}>
                     該当するカードが見つかりません。
                   </div>
