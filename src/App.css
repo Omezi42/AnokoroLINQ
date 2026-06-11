@@ -132,7 +132,6 @@ header h1 {
   opacity: 1;
 }
 
-/* Graphical Mode Selector */
 .mode-selector-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -142,7 +141,7 @@ header h1 {
 
 @media (min-width: 480px) {
   .mode-selector-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 

@@ -39,11 +39,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const modeText = 
     settings.mode === 1 ? "モード1: お題【カード名】➔ 回答【自由テキスト】" :
     settings.mode === 2 ? "モード2: お題【一般テーマ】➔ 回答【カード名】" :
-    "モード3: お題【カード名】➔ 回答【カード名】";
+    settings.mode === 3 ? "モード3: お題【カード名】➔ 回答【カード名】" :
+    "モード4: お題【本家風ワード】➔ 回答【自由テキスト】";
 
   // カード検索（モード2・3用）
   useEffect(() => {
-    if (settings.mode === 1) {
+    if (settings.mode === 1 || settings.mode === 4) {
       setSearchResults([]);
       return;
     }
@@ -97,7 +98,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     if (!finalHint) return;
 
     // モード2・3の場合、存在するカード名であるかチェック
-    if (settings.mode !== 1) {
+    if (settings.mode !== 1 && settings.mode !== 4) {
       if (!CARD_NAMES.includes(finalHint)) {
         alert("『あの頃の自作TCG』に存在する正確なカード名を選択してください。");
         return;
@@ -256,14 +257,14 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           <div className="input-group">
             <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem' }}>
               <ChevronRight size={14} style={{ color: 'var(--color-primary)' }} />
-              {settings.mode === 1 ? "自由なヒントワードを入力してください" : "ヒントにするカード名を選択してください"}
+              {settings.mode === 1 || settings.mode === 4 ? "自由なヒントワードを入力してください" : "ヒントにするカード名を選択してください"}
             </label>
             
-            {settings.mode === 1 ? (
+            {settings.mode === 1 || settings.mode === 4 ? (
               <div style={{ display: 'flex', gap: '10px' }}>
                 <input
                   type="text"
-                  placeholder="例: 赤い、ドラゴン、属性など..."
+                  placeholder={settings.mode === 4 ? "例: 温かい、飲み物、朝など..." : "例: 赤い、ドラゴン、属性など..."}
                   value={hintInput}
                   onChange={(e) => setHintInput(e.target.value)}
                   maxLength={15}

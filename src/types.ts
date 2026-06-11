@@ -1,4 +1,4 @@
-export type GameMode = 1 | 2 | 3;
+export type GameMode = 1 | 2 | 3 | 4;
 
 export interface Player {
   id: string;
@@ -29,6 +29,7 @@ export interface GameFlow {
 
 export interface RoomSettings {
   mode: GameMode;
+  themeType?: 'random' | 'custom';
 }
 
 export interface Room {

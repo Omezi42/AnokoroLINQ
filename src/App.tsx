@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { ref, set, onValue, get, update, remove, onDisconnect } from 'firebase/database';
 import { db } from './firebase';
-import type { Room, Player, GameMode } from './types';
+import type { Room, Player, GameMode, RoomSettings } from './types';
 import { Lobby } from './components/Lobby';
 import { GameBoard } from './components/GameBoard';
 import { Voting } from './components/Voting';
 import { Results } from './components/Results';
-import { THEMES, CARD_NAMES } from './cardData';
+import { THEMES, CARD_NAMES, CLASSIC_WORDS } from './cardData';
 import { UserPlus, Sparkles } from 'lucide-react';
 import './App.css';
 
@@ -186,7 +186,8 @@ function App() {
       status: 'waiting',
       hostId: userId,
       settings: {
-        mode: 1
+        mode: 1,
+        themeType: 'random'
       },
       players: {
         [userId]: {
@@ -289,7 +290,7 @@ function App() {
   };
 
   // ゲーム開始 (ホスト)
-  const handleStartGame = async (mode: GameMode) => {
+  const handleStartGame = async (mode: GameMode, manualWord?: string) => {
     if (!room || room.hostId !== userId) return;
 
     const players = Object.values(room.players || {});
@@ -303,13 +304,20 @@ function App() {
 
     // 1. お題ワードの決定
     let secretWord = "";
-    if (mode === 2) {
-      // モード2: テーマからランダム
-      secretWord = THEMES[Math.floor(Math.random() * THEMES.length)];
+    if (manualWord && manualWord.trim()) {
+      secretWord = manualWord.trim();
     } else {
-      // モード1・3: カード名からランダム (NotFound, VOIDを除く)
-      const cleanCards = CARD_NAMES.filter(n => n !== "NotFound" && n !== "VOID");
-      secretWord = cleanCards[Math.floor(Math.random() * cleanCards.length)];
+      if (mode === 4) {
+        // モード4: 本家風ワードリストからランダム
+        secretWord = CLASSIC_WORDS[Math.floor(Math.random() * CLASSIC_WORDS.length)];
+      } else if (mode === 2) {
+        // モード2: テーマからランダム
+        secretWord = THEMES[Math.floor(Math.random() * THEMES.length)];
+      } else {
+        // モード1・3: カード名からランダム (NotFound, VOIDを除く)
+        const cleanCards = CARD_NAMES.filter(n => n !== "NotFound" && n !== "VOID");
+        secretWord = cleanCards[Math.floor(Math.random() * cleanCards.length)];
+      }
     }
 
     // 2. リンクペアの決定 (接続中プレイヤーからランダムに2名)
@@ -337,6 +345,7 @@ function App() {
     const gameUpdate = {
       status: 'playing',
       'settings/mode': mode,
+      'settings/themeType': manualWord ? 'custom' : 'random',
       scoreCalculated: false,
       players: updatedPlayers,
       gameFlow: {
@@ -362,10 +371,10 @@ function App() {
     const turnOrder = flow.turnOrder;
     const playersCount = turnOrder.length;
 
-    // 1. 自分のヒントを更新
+    // 1. 自分のヒントを更新 (部屋のルートからの相対パス)
     const hintPath = currentRound === 1 
-      ? `rooms/${roomCode}/players/${userId}/hints/round1`
-      : `rooms/${roomCode}/players/${userId}/hints/round2`;
+      ? `players/${userId}/hints/round1`
+      : `players/${userId}/hints/round2`;
 
     // 2. 次の手番進行を計算
     const nextIndex = turnIndex + 1;
@@ -390,17 +399,17 @@ function App() {
 
     const updates: Record<string, any> = {};
     updates[hintPath] = hint;
-    updates[`rooms/${roomCode}/gameFlow/round`] = nextRound;
-    updates[`rooms/${roomCode}/gameFlow/turnIndex`] = nextIndexInRound;
+    updates[`gameFlow/round`] = nextRound;
+    updates[`gameFlow/turnIndex`] = nextIndexInRound;
     
     if (nextStatus === 'voting') {
-      updates[`rooms/${roomCode}/status`] = 'voting';
-      updates[`rooms/${roomCode}/gameFlow/turnPlayerId`] = "";
+      updates[`status`] = 'voting';
+      updates[`gameFlow/turnPlayerId`] = "";
     } else {
-      updates[`rooms/${roomCode}/gameFlow/turnPlayerId`] = nextPlayerId;
+      updates[`gameFlow/turnPlayerId`] = nextPlayerId;
     }
 
-    await update(ref(db), updates);
+    await update(ref(db, `rooms/${roomCode}`), updates);
   };
 
   // 投票の送信
@@ -415,7 +424,14 @@ function App() {
   // もう一度遊ぶ (ホスト) - スコアは維持したまま新しいお題で開始
   const handleNextGame = () => {
     if (room) {
-      handleStartGame(room.settings.mode);
+      const currentThemeType = room.settings.themeType || 'random';
+      if (currentThemeType === 'custom') {
+        const input = prompt("次のお題を入力してください（空欄の場合はランダムお題になります）：");
+        if (input === null) return; // キャンセルされたら開始しない
+        handleStartGame(room.settings.mode, input.trim() !== "" ? input.trim() : undefined);
+      } else {
+        handleStartGame(room.settings.mode);
+      }
     }
   };
 
@@ -441,6 +457,12 @@ function App() {
       players: resetPlayers,
       gameFlow: null
     });
+  };
+
+  // 設定の更新
+  const handleUpdateSettings = async (settings: Partial<RoomSettings>) => {
+    if (!roomCode) return;
+    await update(ref(db, `rooms/${roomCode}/settings`), settings);
   };
 
   return (
@@ -517,6 +539,7 @@ function App() {
                   onStartGame={handleStartGame}
                   onLeaveRoom={handleLeaveRoom}
                   onShowToast={showToastNotification}
+                  onUpdateSettings={handleUpdateSettings}
                 />
               )}
               {room.status === 'playing' && (

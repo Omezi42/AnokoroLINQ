@@ -1,13 +1,14 @@
 import React from 'react';
-import type { Room, Player, GameMode } from '../types';
+import type { Room, Player, GameMode, RoomSettings } from '../types';
 import { LogOut, Play, Settings, Copy, User, Users } from 'lucide-react';
 
 interface LobbyProps {
   room: Room;
   currentPlayerId: string;
-  onStartGame: (mode: GameMode) => void;
+  onStartGame: (mode: GameMode, manualWord?: string) => void;
   onLeaveRoom: () => void;
   onShowToast: (message: string) => void;
+  onUpdateSettings: (settings: Partial<RoomSettings>) => void;
 }
 
 export const Lobby: React.FC<LobbyProps> = ({
@@ -15,18 +16,26 @@ export const Lobby: React.FC<LobbyProps> = ({
   currentPlayerId,
   onStartGame,
   onLeaveRoom,
-  onShowToast
+  onShowToast,
+  onUpdateSettings
 }) => {
   const players = Object.values(room.players || {});
   const isHost = room.hostId === currentPlayerId;
   const [selectedMode, setSelectedMode] = React.useState<GameMode>(1);
+  const [manualWord, setManualWord] = React.useState<string>('');
+
+  const themeType = room.settings?.themeType || 'random';
 
   const handleStart = () => {
     if (players.length < 4) {
       alert("ゲームを開始するには4人以上のプレイヤーが必要です。");
       return;
     }
-    onStartGame(selectedMode);
+    if (themeType === 'custom' && !manualWord.trim()) {
+      alert("お題を入力してください。");
+      return;
+    }
+    onStartGame(selectedMode, themeType === 'custom' ? manualWord.trim() : undefined);
   };
 
   const handleCopyCode = () => {
@@ -86,13 +95,95 @@ export const Lobby: React.FC<LobbyProps> = ({
               <h4>モード 3</h4>
               <p>お題:【カード名】<br/>ヒント:【カード名】</p>
             </div>
+            <div 
+              className={`mode-card ${selectedMode === 4 ? 'selected' : ''}`}
+              onClick={() => isHost && setSelectedMode(4)}
+              style={{ opacity: !isHost && selectedMode !== 4 ? 0.6 : 1, cursor: isHost ? 'pointer' : 'default' }}
+            >
+              <h4>モード 4</h4>
+              <p>お題:【本家風ワード】<br/>ヒント:【自由記述】</p>
+            </div>
           </div>
 
           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '14px', lineHeight: '1.4', background: 'rgba(15, 23, 42, 0.02)', padding: '10px 14px', borderRadius: '8px', borderLeft: '3px solid var(--color-primary)' }}>
             {selectedMode === 1 && "💡 リンクペアに同じカード名が配られます。市民はお題を知りません。各自お題に沿った自由なヒントを入力します。"}
             {selectedMode === 2 && "💡 リンクペアに『ドラゴン』等のテーマが配られます。市民はお題を知りません。各自テーマに沿った実在の『カード名』を検索してヒントにします。"}
             {selectedMode === 3 && "💡 リンクペアに同じカード名が配られます。市民はお題を知りません。各自お題に似ている別の実在の『カード名』を検索してヒントにします。"}
+            {selectedMode === 4 && "💡 リンクペアに日常的な一般的な言葉（コーヒー、旅行など）が配られます。市民はお題を知りません。各自お題に沿った自由なヒントを入力します。カード選択UIは表示されません。"}
           </div>
+
+          {isHost ? (
+            <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-main)', fontSize: '0.9rem', fontWeight: 'bold' }}>
+                お題の決定方法
+              </label>
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => onUpdateSettings({ themeType: 'random' })}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    fontSize: '0.85rem',
+                    borderRadius: '8px',
+                    border: '1px solid',
+                    borderColor: themeType === 'random' ? 'var(--color-primary)' : 'var(--border-color)',
+                    background: themeType === 'random' ? 'var(--color-primary-glow)' : 'transparent',
+                    color: themeType === 'random' ? 'var(--color-primary)' : 'var(--text-muted)',
+                    fontWeight: themeType === 'random' ? 'bold' : 'normal',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ランダムで決定
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => onUpdateSettings({ themeType: 'custom' })}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    fontSize: '0.85rem',
+                    borderRadius: '8px',
+                    border: '1px solid',
+                    borderColor: themeType === 'custom' ? 'var(--color-primary)' : 'var(--border-color)',
+                    background: themeType === 'custom' ? 'var(--color-primary-glow)' : 'transparent',
+                    color: themeType === 'custom' ? 'var(--color-primary)' : 'var(--text-muted)',
+                    fontWeight: themeType === 'custom' ? 'bold' : 'normal',
+                    cursor: 'pointer'
+                  }}
+                >
+                  自分で設定する
+                </button>
+              </div>
+
+              {themeType === 'custom' && (
+                <div className="input-group" style={{ margin: 0 }}>
+                  <input
+                    type="text"
+                    placeholder="ひらがな・カタカナ・漢字などのお題を入力"
+                    value={manualWord}
+                    onChange={(e) => setManualWord(e.target.value)}
+                    maxLength={20}
+                    style={{ width: '100%' }}
+                  />
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    ※ リンクペアに配られるお題です。一般市民には「？」と表示されます。
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 'bold' }}>
+                お題の決定方法
+              </label>
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: 'bold', margin: 0 }}>
+                {themeType === 'custom' ? "✍️ ホストが自分で設定中（お題は非公開）" : "🎲 ランダムで自動生成"}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
