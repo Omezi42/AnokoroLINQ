@@ -183,17 +183,21 @@ export const Results: React.FC<ResultsProps> = ({
                 }}>
                   {target1Name}
                 </span>
-                <ArrowRight size={12} style={{ color: 'var(--text-muted)' }} />
-                <span style={{ 
-                  background: 'var(--bg-main)', 
-                  padding: '2px 8px', 
-                  borderRadius: '6px',
-                  border: '1px solid var(--border-color)',
-                  color: linkPairIds.includes(p.vote?.player2) ? 'var(--color-gold)' : 'var(--text-main)',
-                  fontWeight: linkPairIds.includes(p.vote?.player2) ? 'bold' : 'normal'
-                }}>
-                  {target2Name}
-                </span>
+                {!isLink && (
+                  <>
+                    <ArrowRight size={12} style={{ color: 'var(--text-muted)' }} />
+                    <span style={{ 
+                      background: 'var(--bg-main)', 
+                      padding: '2px 8px', 
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-color)',
+                      color: linkPairIds.includes(p.vote?.player2) ? 'var(--color-gold)' : 'var(--text-main)',
+                      fontWeight: linkPairIds.includes(p.vote?.player2) ? 'bold' : 'normal'
+                    }}>
+                      {target2Name}
+                    </span>
+                  </>
+                )}
               </div>
               
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>

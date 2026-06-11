@@ -161,7 +161,14 @@ function App() {
     
     // 接続中の全プレイヤーが投票を終えているか？
     const activePlayers = players.filter(p => p.isConnected !== false);
-    const allVoted = activePlayers.every(p => p.vote && p.vote.player1 && p.vote.player2);
+    const allVoted = activePlayers.every(p => {
+      const isLink = room.gameFlow?.linkPairs?.includes(p.id) || p.role === 'link';
+      if (isLink) {
+        return p.vote && p.vote.player1;
+      } else {
+        return p.vote && p.vote.player1 && p.vote.player2;
+      }
+    });
 
     if (allVoted && activePlayers.length >= 4) {
       update(ref(db, `rooms/${room.id}`), {

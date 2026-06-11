@@ -17,6 +17,9 @@ export const Voting: React.FC<VotingProps> = ({
   const me = players[currentPlayerId];
   const otherPlayers = Object.values(players).filter(p => p.id !== currentPlayerId);
   
+  const isLink = room.gameFlow?.linkPairs?.includes(currentPlayerId) || me.role === 'link';
+  const maxSelectCount = isLink ? 1 : 2;
+
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [hasVoted, setHasVoted] = useState(!!(me.vote && me.vote.player1));
 
@@ -26,22 +29,31 @@ export const Voting: React.FC<VotingProps> = ({
     if (selectedIds.includes(playerId)) {
       setSelectedIds(selectedIds.filter(id => id !== playerId));
     } else {
-      if (selectedIds.length < 2) {
-        setSelectedIds([...selectedIds, playerId]);
+      if (maxSelectCount === 1) {
+        // 1人の場合は置き換え
+        setSelectedIds([playerId]);
       } else {
-        // すでに2人選ばれている場合は、最初のものを解除して新しいものを追加する
-        setSelectedIds([selectedIds[1], playerId]);
+        if (selectedIds.length < 2) {
+          setSelectedIds([...selectedIds, playerId]);
+        } else {
+          // すでに2人選ばれている場合は、最初のものを解除して新しいものを追加する
+          setSelectedIds([selectedIds[1], playerId]);
+        }
       }
     }
   };
 
   const handleSubmit = () => {
-    if (selectedIds.length !== 2) {
-      alert("リンクペア（2人）を選択してください。");
+    if (selectedIds.length !== maxSelectCount) {
+      if (maxSelectCount === 1) {
+        alert("相方のプレイヤー（1人）を選択してください。");
+      } else {
+        alert("リンクペア（2人）を選択してください。");
+      }
       return;
     }
     
-    onVote(selectedIds[0], selectedIds[1]);
+    onVote(selectedIds[0], selectedIds[1] || '');
     setHasVoted(true);
   };
 
@@ -100,7 +112,9 @@ export const Voting: React.FC<VotingProps> = ({
       <h2>投票タイム</h2>
       <p className="subtitle" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginTop: '10px' }}>
         <Info size={16} style={{ color: 'var(--color-primary)' }} />
-        同じお題を持っていると思う「リンクペア (2人)」を選択してください。
+        {isLink 
+          ? "自分と同じお題を持っていると思う「相方のプレイヤー (1人)」を選択してください。"
+          : "同じお題を持っていると思う「リンクペア (2人)」を選択してください。"}
       </p>
 
       <div className="voting-grid">
@@ -154,10 +168,10 @@ export const Voting: React.FC<VotingProps> = ({
         <button
           className="primary"
           style={{ width: '100%', padding: '16px', borderRadius: '12px' }}
-          disabled={selectedIds.length !== 2}
+          disabled={selectedIds.length !== maxSelectCount}
           onClick={handleSubmit}
         >
-          投票を送信する ({selectedIds.length} / 2 選択)
+          投票を送信する ({selectedIds.length} / {maxSelectCount} 選択)
         </button>
       </div>
     </div>
