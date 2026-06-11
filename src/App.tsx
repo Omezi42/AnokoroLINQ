@@ -36,6 +36,16 @@ function App() {
   const [roomCode, setRoomCode] = useState<string>('');
   const [room, setRoom] = useState<Room | null>(null);
   const [isJoining, setIsJoining] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string>('');
+  const [showToast, setShowToast] = useState<boolean>(false);
+
+  const showToastNotification = (message: string) => {
+    setToastMessage(message);
+    setShowToast(true);
+    setTimeout(() => {
+      setShowToast(false);
+    }, 2500);
+  };
 
   // 接続状態の監視と自動切断処理 (onDisconnect)
   useEffect(() => {
@@ -491,6 +501,7 @@ function App() {
                   currentPlayerId={userId}
                   onStartGame={handleStartGame}
                   onLeaveRoom={handleLeaveRoom}
+                  onShowToast={showToastNotification}
                 />
               )}
               {room.status === 'playing' && (
@@ -519,6 +530,9 @@ function App() {
           )
         )}
       </main>
+      <div className={`toast-notification ${showToast ? 'show' : ''}`}>
+        {toastMessage}
+      </div>
     </div>
   );
 }

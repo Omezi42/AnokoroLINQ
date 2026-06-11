@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Room, Player } from '../types';
-import { RotateCcw, Home, Star, Trophy, Medal, Check } from 'lucide-react';
+import { RotateCcw, Home, Star, Trophy, Medal, Check, Award, ArrowRight } from 'lucide-react';
 
 interface ResultsProps {
   room: Room;
@@ -58,7 +58,7 @@ export const Results: React.FC<ResultsProps> = ({
       
       if (p1Correct && p2Correct) {
         pointsGained += 2;
-        breakdown.push("リンクペアを完全に的中 (+2点)");
+        breakdown.push("リンクペアを完全的中 (+2点)");
       } else if (p1Correct || p2Correct) {
         pointsGained += 1;
         const correctName = p1Correct 
@@ -76,20 +76,46 @@ export const Results: React.FC<ResultsProps> = ({
   // リーダーボード用にソート (累積スコアの降順)
   const sortedPlayers = [...playerList].sort((a, b) => b.score - a.score);
 
+  // CSS紙吹雪ピースの生成 (35個)
+  const confettiPieces = Array.from({ length: 35 }).map((_, i) => {
+    const left = Math.random() * 100;
+    const delay = Math.random() * 3;
+    const duration = 2 + Math.random() * 2.5;
+    return (
+      <div 
+        key={i} 
+        className="confetti-piece" 
+        style={{ 
+          left: `${left}%`, 
+          animationDelay: `${delay}s`,
+          animationDuration: `${duration}s`
+        }} 
+      />
+    );
+  });
+
   return (
-    <div className="results-screen glass-panel">
-      <h2>ゲーム結果発表</h2>
+    <div className="results-screen glass-panel" style={{ position: 'relative' }}>
+      {/* 簡易紙吹雪のオーバーレイ */}
+      <div className="confetti-container">
+        {confettiPieces}
+      </div>
+
+      <h2 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+        <Award size={24} style={{ color: 'var(--color-gold)' }} />
+        ゲーム結果発表
+      </h2>
       
       {/* お題 & リンクペアの公開 */}
-      <div className="results-summary glass-panel" style={{ padding: '24px', margin: '24px 0', border: '1px solid rgba(251, 191, 36, 0.3)' }}>
-        <p className="subtitle" style={{ color: 'var(--color-gold)' }}>正解のお題</p>
+      <div className="results-summary glass-panel" style={{ padding: '28px', margin: '24px 0', border: '2px solid var(--color-gold-glow)', background: 'rgba(217, 119, 6, 0.02)', position: 'relative', zIndex: 10 }}>
+        <p className="subtitle" style={{ color: 'var(--color-gold)', fontWeight: 800, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>正解のお題</p>
         <div className="secret-word-reveal">{secretWord}</div>
         
-        <p className="subtitle" style={{ marginTop: '16px' }}>正解のリンクペア</p>
-        <div className="link-pairs-reveal" style={{ marginTop: '8px' }}>
+        <p className="subtitle" style={{ marginTop: '20px', color: 'var(--color-primary)', fontWeight: 800, fontSize: '0.9rem' }}>正解のリンクペア</p>
+        <div className="link-pairs-reveal" style={{ marginTop: '10px' }}>
           {linkPairIds.map(id => (
-            <div key={id} className="link-pair-badge animate-pulse-glow" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Star size={14} style={{ fill: 'currentColor' }} />
+            <div key={id} className="link-pair-badge animate-pulse-glow" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Star size={16} style={{ fill: 'currentColor', color: 'var(--color-gold)' }} />
               {players[id]?.name || 'プレイヤー'}
             </div>
           ))}
@@ -97,11 +123,12 @@ export const Results: React.FC<ResultsProps> = ({
       </div>
 
       {/* 投票内訳 */}
-      <div className="votes-breakdown glass-panel" style={{ padding: '20px', marginBottom: '24px' }}>
-        <h3 style={{ marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Check size={18} className="text-secondary" />
-          全員の投票と獲得得点
+      <div className="votes-breakdown glass-panel" style={{ padding: '24px', marginBottom: '28px', position: 'relative', zIndex: 10 }}>
+        <h3 style={{ marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem' }}>
+          <Check size={18} style={{ color: 'var(--color-secondary)' }} />
+          投票結果と獲得ポイント
         </h3>
+        
         {playerList.map((p: Player) => {
           const isLink = linkPairIds.includes(p.id);
           const { pointsGained, breakdown } = calculatePointsForPlayer(p);
@@ -113,24 +140,63 @@ export const Results: React.FC<ResultsProps> = ({
               key={p.id} 
               className="vote-result-row"
               style={{
-                borderLeft: isLink ? '4px solid var(--color-gold)' : '4px solid transparent',
-                background: isLink ? 'rgba(251, 191, 36, 0.03)' : 'transparent',
-                paddingLeft: '12px'
+                borderLeft: isLink ? '4px solid var(--color-gold)' : '4px solid var(--color-secondary-glow)',
+                background: isLink ? 'rgba(217, 119, 6, 0.02)' : 'transparent',
+                paddingLeft: '14px',
+                borderRadius: '0 8px 8px 0',
+                marginBottom: '8px'
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span className="voter" style={{ color: isLink ? 'var(--color-gold)' : 'inherit', fontWeight: 700 }}>
-                  {p.name} {isLink ? '★ リンク' : '👥 市民'}
-                  {p.isConnected === false && <span style={{ fontSize: '0.65rem', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', padding: '1px 4px', borderRadius: '4px', marginLeft: '6px' }}>OFFLINE</span>}
+                <span className="voter" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {p.name}
+                  <span style={{ 
+                    fontSize: '0.7rem', 
+                    padding: '2px 8px', 
+                    borderRadius: '999px',
+                    fontWeight: 'bold',
+                    background: isLink ? 'var(--color-gold-glow)' : 'var(--color-secondary-glow)',
+                    color: isLink ? 'var(--color-gold)' : 'var(--color-secondary)'
+                  }}>
+                    {isLink ? '★ リンク' : '👥 市民'}
+                  </span>
+                  {p.isConnected === false && (
+                    <span style={{ fontSize: '0.65rem', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', padding: '1px 4px', borderRadius: '4px' }}>
+                      OFFLINE
+                    </span>
+                  )}
                 </span>
-                <span className="score-diff" style={{ color: pointsGained > 0 ? 'var(--color-secondary)' : 'var(--text-muted)' }}>
+                <span className="score-diff" style={{ color: pointsGained > 0 ? 'var(--color-secondary)' : 'var(--text-muted)', fontWeight: 800 }}>
                   +{pointsGained}点
                 </span>
               </div>
-              <div className="targets">
-                投票先: <span style={{ color: linkPairIds.includes(p.vote?.player1) ? 'var(--color-gold)' : 'var(--text-main)' }}>{target1Name}</span> , <span style={{ color: linkPairIds.includes(p.vote?.player2) ? 'var(--color-gold)' : 'var(--text-main)' }}>{target2Name}</span>
+              
+              <div className="targets" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
+                <span>投票先:</span>
+                <span style={{ 
+                  background: 'var(--bg-main)', 
+                  padding: '2px 8px', 
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)',
+                  color: linkPairIds.includes(p.vote?.player1) ? 'var(--color-gold)' : 'var(--text-main)',
+                  fontWeight: linkPairIds.includes(p.vote?.player1) ? 'bold' : 'normal'
+                }}>
+                  {target1Name}
+                </span>
+                <ArrowRight size={12} style={{ color: 'var(--text-muted)' }} />
+                <span style={{ 
+                  background: 'var(--bg-main)', 
+                  padding: '2px 8px', 
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)',
+                  color: linkPairIds.includes(p.vote?.player2) ? 'var(--color-gold)' : 'var(--text-main)',
+                  fontWeight: linkPairIds.includes(p.vote?.player2) ? 'bold' : 'normal'
+                }}>
+                  {target2Name}
+                </span>
               </div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+              
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
                 内訳: {breakdown.join(' / ')}
               </div>
             </div>
@@ -139,8 +205,11 @@ export const Results: React.FC<ResultsProps> = ({
       </div>
 
       {/* リーダーボード */}
-      <div className="score-leaderboard">
-        <h3>現在のスコアランキング</h3>
+      <div className="score-leaderboard" style={{ position: 'relative', zIndex: 10 }}>
+        <h3 style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Trophy size={18} style={{ color: 'var(--color-gold)' }} />
+          現在のスコアランキング
+        </h3>
         <div style={{ marginTop: '16px' }}>
           {sortedPlayers.map((p: Player, index) => {
             const isWinner = index === 0 && p.score > 0;
@@ -148,12 +217,12 @@ export const Results: React.FC<ResultsProps> = ({
             const isThird = index === 2 && p.score > 0;
             const isLink = linkPairIds.includes(p.id);
 
-            // メダルアイコンの判定
+            // ランクアイコン/順位のレンダリング
             const renderRankIcon = () => {
-              if (isWinner) return <Trophy size={18} style={{ color: 'var(--color-gold)' }} />;
-              if (isSecond) return <Medal size={18} style={{ color: '#e2e8f0' }} />;
-              if (isThird) return <Medal size={18} style={{ color: '#b45309' }} />;
-              return <span style={{ fontWeight: 800, width: '18px', display: 'inline-block', textAlign: 'center' }}>{index + 1}</span>;
+              if (isWinner) return <Trophy size={20} style={{ color: 'var(--color-gold)' }} />;
+              if (isSecond) return <Medal size={20} style={{ color: '#94a3b8' }} />; // Silver
+              if (isThird) return <Medal size={20} style={{ color: '#b45309' }} />;  // Bronze
+              return <span style={{ fontWeight: 800, width: '20px', display: 'inline-block', textAlign: 'center', color: 'var(--text-muted)' }}>{index + 1}</span>;
             };
 
             return (
@@ -161,18 +230,21 @@ export const Results: React.FC<ResultsProps> = ({
                 key={p.id} 
                 className={`leaderboard-row ${isWinner ? 'winner' : ''} ${isLink ? 'is-link' : ''}`}
                 style={{
-                  borderColor: isWinner ? 'var(--color-gold)' : isSecond ? '#94a3b8' : isThird ? '#b45309' : 'transparent',
-                  background: isWinner ? 'rgba(251, 191, 36, 0.06)' : 'rgba(255, 255, 255, 0.02)'
+                  borderLeft: isWinner ? '4px solid var(--color-gold)' : '1px solid var(--border-color)',
+                  boxShadow: isWinner ? '0 4px 14px var(--color-gold-glow)' : 'none'
                 }}
+                title={isLink ? "このゲームのリンクペア" : undefined}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   {renderRankIcon()}
-                  <span style={{ fontWeight: isWinner ? 700 : 500 }}>{p.name}</span>
+                  <span style={{ fontWeight: isWinner ? 800 : 600 }}>{p.name}</span>
                   {isLink && <Star size={12} style={{ color: 'var(--color-gold)', fill: 'currentColor' }} />}
                   {p.isConnected === false && <span style={{ fontSize: '0.65rem', color: 'var(--color-accent)' }}>OFFLINE</span>}
                 </div>
                 <div>
-                  <span style={{ fontWeight: 800, fontSize: '1.05rem' }}>{p.score}点</span>
+                  <span style={{ fontWeight: 900, fontSize: '1.1rem', color: isWinner ? 'var(--color-gold)' : 'inherit' }}>
+                    {p.score || 0}点
+                  </span>
                 </div>
               </div>
             );
@@ -182,20 +254,20 @@ export const Results: React.FC<ResultsProps> = ({
 
       {/* ホスト向け操作パネル */}
       {isHost && (
-        <div style={{ display: 'flex', gap: '16px', marginTop: '32px' }}>
-          <button className="primary" style={{ flex: 1 }} onClick={onNextGame}>
+        <div style={{ display: 'flex', gap: '16px', marginTop: '36px', position: 'relative', zIndex: 10 }}>
+          <button className="primary" style={{ flex: 1, borderRadius: '12px' }} onClick={onNextGame}>
             <RotateCcw size={18} />
             もう一度遊ぶ
           </button>
-          <button className="secondary" style={{ flex: 1 }} onClick={onBackToLobby}>
+          <button className="secondary" style={{ flex: 1, borderRadius: '12px' }} onClick={onBackToLobby}>
             <Home size={18} />
             ロビーに戻る
           </button>
         </div>
       )}
       {!isHost && (
-        <p style={{ marginTop: '32px', textAlign: 'center', fontStyle: 'italic' }}>
-          ホストが次のゲームを開始するのを待っています...
+        <p style={{ marginTop: '36px', textAlign: 'center', fontStyle: 'italic', color: 'var(--text-muted)', fontSize: '0.9rem', position: 'relative', zIndex: 10 }}>
+          ⏳ ホストが次のゲームを開始するのを待っています...
         </p>
       )}
     </div>

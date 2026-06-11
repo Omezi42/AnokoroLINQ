@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Room, Player } from '../types';
 import { CARDS, CARD_NAMES } from '../cardData';
-import { Send, Search, HelpCircle, Eye, EyeOff, User, Tag } from 'lucide-react';
+import { Send, Search, HelpCircle, Tag, MessageSquare, ChevronRight } from 'lucide-react';
 
 interface GameBoardProps {
   room: Room;
@@ -27,7 +27,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
   // UI States
   const [hintInput, setHintInput] = useState('');
-  const [showWord, setShowWord] = useState(true);
+  const [isFlipped, setIsFlipped] = useState(false);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<string[]>([]);
   const [showResults, setShowResults] = useState(false);
@@ -86,7 +86,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
   // 新しいヒント受信時にタイムラインの末尾にスクロール
   useEffect(() => {
-    timelineEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setTimeout(() => {
+      timelineEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   }, [players]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -128,92 +130,119 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   return (
     <div className="game-screen glass-panel">
       {/* モード情報 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <span className="lobby-settings-info">{modeText}</span>
-        <span className="lobby-settings-info" style={{ borderColor: 'var(--color-primary-glow)' }}>
+        <span className="lobby-settings-info" style={{ borderColor: 'var(--color-primary-glow)', color: 'var(--color-primary)' }}>
           ラウンド {currentRound} / 2
         </span>
       </div>
 
-      {/* お題カード表示 */}
-      <div className="card-revealer glass-panel">
-        <p className="subtitle" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+      {/* お題カード表示 (3Dフリップカード) */}
+      <div className="card-revealer">
+        <p className="subtitle" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.85rem', marginBottom: '12px' }}>
           <HelpCircle size={16} />
-          あなたに配られた秘密のお題
+          配られたカード (クリックで裏返します)
         </p>
         
-        {me.role === 'citizen' ? (
-          <div>
-            <div className="word-display unknown">？</div>
-            <p style={{ fontSize: '0.85rem', color: 'var(--color-accent)' }}>
-              あなたは一般市民です。お題を知りません。他の人のヒントからお題を推測してください。
-            </p>
-          </div>
-        ) : (
-          <div>
-            <div className="word-display">
-              {showWord ? me.targetWord : '••••••'}
+        <div 
+          className={`tcg-card-wrapper ${isFlipped ? 'flipped' : ''}`}
+          onClick={() => setIsFlipped(!isFlipped)}
+        >
+          <div className="tcg-card-inner">
+            {/* カードの裏面 (隠されている状態) */}
+            <div className="tcg-card-front">
+              <div className="tcg-card-pattern"></div>
+              <span className="tcg-card-badge" style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }}>
+                SECRET CARD
+              </span>
+              <div style={{ fontSize: '1.4rem', fontWeight: 900, letterSpacing: '0.05em' }}>TAP TO REVEAL</div>
+              <div style={{ fontSize: '0.75rem', marginTop: '8px', opacity: 0.8 }}>タップしてお題を確認</div>
             </div>
-            <p style={{ fontSize: '0.85rem', color: 'var(--color-secondary)' }}>
-              あなたはリンク（スパイ）です。ペアの相手に伝わるようにヒントを出してください。
-            </p>
-            <button 
-              className="secondary" 
-              style={{ marginTop: '8px', padding: '6px 12px', fontSize: '0.8rem' }}
-              onClick={() => setShowWord(!showWord)}
-            >
-              {showWord ? <EyeOff size={14} /> : <Eye size={14} />}
-              {showWord ? 'お題を隠す' : 'お題を表示'}
-            </button>
+
+            {/* カードの表面 (オープンされた状態) */}
+            {me.role === 'citizen' ? (
+              <div className="tcg-card-back citizen-card">
+                <span className="tcg-card-badge" style={{ background: 'rgba(225, 29, 72, 0.08)', color: 'var(--color-accent)' }}>
+                  👤 一般市民
+                </span>
+                <div className="word-display unknown">？</div>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+                  あなたはお題を知りません。<br/>他のプレイヤーのヒントからペアを推理してください。
+                </p>
+              </div>
+            ) : (
+              <div className="tcg-card-back">
+                <span className="tcg-card-badge" style={{ background: 'rgba(124, 58, 237, 0.08)', color: 'var(--color-primary)' }}>
+                  🔗 リンクペア
+                </span>
+                <div className="word-display">{me.targetWord}</div>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+                  お題を共有する相方がいます。<br/>市民にバレないよう、相方に伝わるヒントを出してください。
+                </p>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* 手番ステータス */}
-      <div className={`turn-banner ${isMyTurn ? 'my-turn animate-pulse-glow' : 'other-turn'}`}>
+      <div className={`turn-banner ${isMyTurn ? 'my-turn' : 'other-turn'}`}>
         {isMyTurn ? (
-          <span>あなたのヒント入力ターンです！</span>
+          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            ✨ あなたのヒント提出ターンです！
+          </span>
         ) : (
-          <span>{activePlayer?.name} がヒントを入力しています...</span>
+          <span>💬 {activePlayer?.name} がヒントを入力しています...</span>
         )}
       </div>
 
       {/* ヒントタイムライン */}
-      <h3 style={{ textAlign: 'left', marginBottom: '12px' }}>ヒントログ</h3>
-      <div className="hints-timeline glass-panel" style={{ padding: '16px' }}>
-        <div className="hint-row" style={{ borderLeft: 'none', background: 'transparent', fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          <div>プレイヤー</div>
-          <div>第1ラウンド</div>
-          <div>第2ラウンド</div>
-        </div>
-
+      <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', fontSize: '1.1rem' }}>
+        <MessageSquare size={18} style={{ color: 'var(--color-primary)' }} />
+        ヒントタイムライン
+      </h3>
+      <div className="hints-timeline glass-panel">
         {playerList.map((p: Player) => {
           const isPlayerTurn = turnPlayerId === p.id;
+          const isMe = p.id === currentPlayerId;
+          
           return (
-            <div 
-              key={p.id} 
-              className={`hint-row ${isPlayerTurn ? 'is-active' : ''}`}
-            >
-              <div className="player-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <User size={14} style={{ color: p.id === currentPlayerId ? 'var(--color-secondary)' : 'var(--text-muted)' }} />
-                <span style={{ color: p.id === currentPlayerId ? 'var(--color-secondary)' : 'inherit', fontWeight: p.id === currentPlayerId ? 700 : 500 }}>
-                  {p.name}
+            <div key={p.id} className="chat-row">
+              <div className="chat-meta">
+                <span className={`player-name ${isMe ? 'is-me-tag' : ''}`}>
+                  {p.name} {isMe ? '(あなた)' : ''}
                 </span>
                 {p.isConnected === false && (
-                  <span style={{ fontSize: '0.7rem', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', padding: '1px 4px', borderRadius: '4px', marginLeft: '6px', fontWeight: 'bold' }}>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', padding: '0px 4px', borderRadius: '4px' }}>
                     OFFLINE
                   </span>
                 )}
               </div>
               
-              {/* 第1ラウンドヒント */}
-              <div className={`hint-bubble ${p.hints.round1 ? 'filled' : 'empty'}`}>
-                {p.hints.round1 ? p.hints.round1 : (isPlayerTurn && currentRound === 1 ? '入力中...' : '-')}
-              </div>
-              
-              {/* 第2ラウンドヒント */}
-              <div className={`hint-bubble ${p.hints.round2 ? 'filled' : 'empty'}`}>
-                {p.hints.round2 ? p.hints.round2 : (isPlayerTurn && currentRound === 2 ? '入力中...' : '-')}
+              <div className="chat-bubble-container">
+                {/* ラウンド1のバブル */}
+                <div className={`chat-bubble ${isMe ? 'my-bubble' : ''} ${isPlayerTurn && currentRound === 1 ? 'active-bubble' : ''}`}>
+                  <div className="chat-round-label">Round 1</div>
+                  {p.hints.round1 ? (
+                    <div style={{ fontWeight: 600 }}>{p.hints.round1}</div>
+                  ) : isPlayerTurn && currentRound === 1 ? (
+                    <div className="writing">入力中...</div>
+                  ) : (
+                    <div className="empty">-</div>
+                  )}
+                </div>
+                
+                {/* ラウンド2のバブル */}
+                <div className={`chat-bubble ${isMe ? 'my-bubble' : ''} ${isPlayerTurn && currentRound === 2 ? 'active-bubble' : ''}`}>
+                  <div className="chat-round-label">Round 2</div>
+                  {p.hints.round2 ? (
+                    <div style={{ fontWeight: 600 }}>{p.hints.round2}</div>
+                  ) : isPlayerTurn && currentRound === 2 ? (
+                    <div className="writing">入力中...</div>
+                  ) : (
+                    <div className="empty">-</div>
+                  )}
+                </div>
               </div>
             </div>
           );
@@ -225,23 +254,24 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       {isMyTurn && (
         <form onSubmit={handleSubmit} className="setup-form" style={{ marginTop: '24px' }}>
           <div className="input-group">
-            <label>
-              {settings.mode === 1 ? "ヒントワードを入力してください (自由)" : "ヒントとなるカード名を選択してください"}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem' }}>
+              <ChevronRight size={14} style={{ color: 'var(--color-primary)' }} />
+              {settings.mode === 1 ? "自由なヒントワードを入力してください" : "ヒントにするカード名を選択してください"}
             </label>
             
             {settings.mode === 1 ? (
               <div style={{ display: 'flex', gap: '10px' }}>
                 <input
                   type="text"
-                  placeholder="例: 赤い、空を飛ぶ、魔法..."
+                  placeholder="例: 赤い、ドラゴン、属性など..."
                   value={hintInput}
                   onChange={(e) => setHintInput(e.target.value)}
                   maxLength={15}
                   required
                   autoFocus
                 />
-                <button type="submit" className="primary">
-                  <Send size={18} />
+                <button type="submit" className="primary" style={{ borderRadius: '12px' }}>
+                  <Send size={16} />
                   送信
                 </button>
               </div>
@@ -250,9 +280,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               <div className="search-container" ref={searchRef}>
                 {/* タイプフィルタータグ */}
                 <div style={{ marginBottom: '12px', textAlign: 'left' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '6px' }}>
                     <Tag size={12} />
-                    タイプ・種族で絞り込む:
+                    種族・属性で絞り込む:
                   </span>
                   <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '6px', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch' }}>
                     {MAJOR_TYPES.map(type => (
@@ -261,15 +291,16 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                         type="button"
                         onClick={() => handleToggleType(type)}
                         style={{
-                          padding: '4px 10px',
+                          padding: '4px 12px',
                           fontSize: '0.75rem',
                           borderRadius: '999px',
                           border: '1px solid',
-                          borderColor: selectedType === type ? 'var(--color-primary)' : 'rgba(255,255,255,0.1)',
+                          borderColor: selectedType === type ? 'var(--color-primary)' : 'var(--border-color)',
                           background: selectedType === type ? 'var(--color-primary-glow)' : 'transparent',
                           color: selectedType === type ? 'var(--color-primary)' : 'var(--text-muted)',
                           cursor: 'pointer',
-                          fontWeight: selectedType === type ? 'bold' : 'normal'
+                          fontWeight: selectedType === type ? 'bold' : 'normal',
+                          transition: 'all 0.15s'
                         }}
                       >
                         {type}
@@ -280,10 +311,10 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <div style={{ position: 'relative', flex: 1 }}>
-                    <Search size={18} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
+                    <Search size={18} style={{ position: 'absolute', left: '14px', top: '14px', color: 'var(--text-muted)' }} />
                     <input
                       type="text"
-                      placeholder={selectedType ? `[${selectedType}] のカード名を入力して検索...` : "カード名を入力して検索..."}
+                      placeholder={selectedType ? `[${selectedType}] タイプのカード名を検索...` : "カード名を入力して検索..."}
                       value={hintInput}
                       onChange={(e) => {
                         setHintInput(e.target.value);
@@ -294,8 +325,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                       required={!selectedType}
                     />
                   </div>
-                  <button type="submit" className="primary">
-                    <Send size={18} />
+                  <button type="submit" className="primary" style={{ borderRadius: '12px' }}>
+                    <Send size={16} />
                     送信
                   </button>
                 </div>
@@ -314,7 +345,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   </div>
                 )}
                 {showResults && (hintInput.trim() !== '' || selectedType !== null) && searchResults.length === 0 && (
-                  <div className="search-results" style={{ padding: '12px', color: 'var(--color-accent)', fontSize: '0.85rem' }}>
+                  <div className="search-results" style={{ padding: '16px', color: 'var(--color-accent)', fontSize: '0.85rem', textAlign: 'center' }}>
                     該当するカードが見つかりません。
                   </div>
                 )}
