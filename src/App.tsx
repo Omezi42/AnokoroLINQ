@@ -32,8 +32,12 @@ const getOrCreateUserId = (): string => {
 
 function App() {
   const [userId] = useState<string>(getOrCreateUserId());
-  const [userName, setUserName] = useState<string>(() => localStorage.getItem('anokoro_linq_username') || '');
+  const [userName, setUserName] = useState<string>(() => {
+    const saved = localStorage.getItem('anokoro_linq_username');
+    return (saved && saved !== 'null' && saved !== 'undefined') ? saved.trim() : '';
+  });
   const [roomCode, setRoomCode] = useState<string>('');
+  const [inputRoomCode, setInputRoomCode] = useState<string>('');
   const [room, setRoom] = useState<Room | null>(null);
   const [isJoining, setIsJoining] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string>('');
@@ -51,18 +55,23 @@ function App() {
   useEffect(() => {
     if (!roomCode || !userId) return;
 
+    const connectedRef = ref(db, '.info/connected');
     const myConnectionRef = ref(db, `rooms/${roomCode}/players/${userId}/isConnected`);
-    
-    // 入室時にオンラインに設定
-    set(myConnectionRef, true);
+    let disconnectRef: any = null;
 
-    // 切断時に自動でオフラインに設定
-    const disconnectRef = onDisconnect(myConnectionRef);
-    disconnectRef.set(false);
+    const unsubscribe = onValue(connectedRef, (snap) => {
+      if (snap.val() === true) {
+        set(myConnectionRef, true);
+        disconnectRef = onDisconnect(myConnectionRef);
+        disconnectRef.set(false);
+      }
+    });
 
     return () => {
-      // 部屋から正常に退出する場合は onDisconnect 処理をキャンセル
-      disconnectRef.cancel();
+      unsubscribe();
+      if (disconnectRef) {
+        disconnectRef.cancel();
+      }
     };
   }, [roomCode, userId]);
 
@@ -81,6 +90,7 @@ function App() {
       } else {
         setRoom(null);
         setRoomCode('');
+        setInputRoomCode('');
         alert("部屋が存在しないか、削除されました。");
       }
     });
@@ -162,11 +172,12 @@ function App() {
 
   // 部屋の作成
   const handleCreateRoom = async () => {
-    if (!userName.trim()) {
+    const trimmedName = userName.trim();
+    if (!trimmedName) {
       alert("ニックネームを入力してください。");
       return;
     }
-    localStorage.setItem('anokoro_linq_username', userName.trim());
+    localStorage.setItem('anokoro_linq_username', trimmedName);
     setIsJoining(true);
 
     const code = generateRoomCode();
@@ -180,7 +191,7 @@ function App() {
       players: {
         [userId]: {
           id: userId,
-          name: userName.trim(),
+          name: trimmedName,
           isHost: true,
           score: 0,
           role: 'none',
@@ -195,6 +206,7 @@ function App() {
     try {
       await set(ref(db, `rooms/${code}`), newRoom);
       setRoomCode(code);
+      setInputRoomCode(code);
     } catch (error) {
       console.error(error);
       alert("部屋の作成に失敗しました。");
@@ -205,16 +217,17 @@ function App() {
 
   // 部屋への参加
   const handleJoinRoom = async () => {
-    if (!userName.trim()) {
+    const trimmedName = userName.trim();
+    if (!trimmedName) {
       alert("ニックネームを入力してください。");
       return;
     }
-    if (!roomCode.trim()) {
+    if (!inputRoomCode.trim()) {
       alert("ルームコードを入力してください。");
       return;
     }
-    const cleanCode = roomCode.trim().toUpperCase();
-    localStorage.setItem('anokoro_linq_username', userName.trim());
+    const cleanCode = inputRoomCode.trim().toUpperCase();
+    localStorage.setItem('anokoro_linq_username', trimmedName);
     setIsJoining(true);
 
     try {
@@ -236,7 +249,7 @@ function App() {
 
       const newPlayer: Player = {
         id: userId,
-        name: userName.trim(),
+        name: trimmedName,
         isHost: false,
         score: 0,
         role: 'none',
@@ -266,10 +279,12 @@ function App() {
       if (confirm("あなたが退室すると部屋が解散されます。よろしいですか？")) {
         await remove(ref(db, `rooms/${roomCode}`));
         setRoomCode('');
+        setInputRoomCode('');
       }
     } else {
       await remove(ref(db, `rooms/${roomCode}/players/${userId}`));
       setRoomCode('');
+      setInputRoomCode('');
     }
   };
 
@@ -465,15 +480,15 @@ function App() {
                   <input
                     type="text"
                     placeholder="ルームコード"
-                    value={roomCode}
-                    onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                    value={inputRoomCode}
+                    onChange={(e) => setInputRoomCode(e.target.value.toUpperCase())}
                     maxLength={4}
                     style={{ textAlign: 'center', textTransform: 'uppercase' }}
                   />
                   <button 
                     className="secondary" 
                     onClick={handleJoinRoom}
-                    disabled={isJoining || !userName.trim() || !roomCode.trim()}
+                    disabled={isJoining || !userName.trim() || !inputRoomCode.trim()}
                   >
                     <UserPlus size={18} />
                     部屋に入る

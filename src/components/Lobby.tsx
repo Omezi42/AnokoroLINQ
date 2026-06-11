@@ -106,21 +106,35 @@ export const Lobby: React.FC<LobbyProps> = ({
             <div
               key={p.id}
               className={`player-badge ${p.id === currentPlayerId ? 'is-me' : ''}`}
+              style={p.isConnected === false ? { opacity: 0.6, borderStyle: 'dashed' } : undefined}
             >
               <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{
                   width: '32px',
                   height: '32px',
                   borderRadius: '50%',
-                  background: p.id === currentPlayerId ? 'var(--color-secondary-glow)' : 'rgba(15, 23, 42, 0.05)',
+                  background: p.id === currentPlayerId 
+                    ? 'var(--color-secondary-glow)' 
+                    : p.isConnected === false
+                      ? 'rgba(239, 68, 68, 0.1)'
+                      : 'rgba(15, 23, 42, 0.05)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: p.id === currentPlayerId ? 'var(--color-secondary)' : 'var(--text-muted)'
+                  color: p.id === currentPlayerId 
+                    ? 'var(--color-secondary)' 
+                    : p.isConnected === false
+                      ? 'var(--color-accent)'
+                      : 'var(--text-muted)'
                 }}>
                   <User size={16} />
                 </div>
                 {p.name} {p.id === currentPlayerId ? ' (あなた)' : ''}
+                {p.isConnected === false && (
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-accent)', background: 'rgba(239, 68, 68, 0.1)', padding: '2px 6px', borderRadius: '4px', marginLeft: '4px', fontWeight: 'normal' }}>
+                    切断中
+                  </span>
+                )}
               </span>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 {room.hostId === p.id && <span className="host-tag">HOST</span>}
