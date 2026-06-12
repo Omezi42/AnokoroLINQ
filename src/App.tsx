@@ -113,34 +113,55 @@ function App() {
       const playerList = Object.values(players);
       const updates: Record<string, any> = {};
 
+      if (linkPairIds.length < 2) return;
+      const [spyAId, spyBId] = linkPairIds;
+      const spyA = players[spyAId];
+      const spyB = players[spyBId];
+
+      // スパイ同士が互いを指名できているか？
+      const spyAVotedSpyB = spyA?.vote?.player1 === spyBId || spyA?.vote?.player2 === spyBId;
+      const spyBVotedSpyA = spyB?.vote?.player1 === spyAId || spyB?.vote?.player2 === spyAId;
+      const isLinkSuccessful = spyAVotedSpyB && spyBVotedSpyA;
+
+      // 各市民がスパイを見破ったか？
+      const successfulCitizenIds: string[] = [];
+      playerList.forEach((p) => {
+        if (linkPairIds.includes(p.id)) return;
+        const v1 = p.vote?.player1;
+        const v2 = p.vote?.player2;
+        // スパイ2人両方を指名しているか
+        const correctCount = (v1 === spyAId || v1 === spyBId ? 1 : 0) + (v2 === spyAId || v2 === spyBId ? 1 : 0);
+        if (correctCount === 2) {
+          successfulCitizenIds.push(p.id);
+        }
+      });
+
+      const anyCitizenGuessedSpies = successfulCitizenIds.length > 0;
+
       playerList.forEach((player) => {
         const isLink = linkPairIds.includes(player.id);
         let pointsGained = 0;
-        const vote1 = player.vote?.player1;
-        const vote2 = player.vote?.player2;
 
         if (isLink) {
-          // リンクの得点
-          // 1. 相方を当てたか？
-          const partnerId = linkPairIds.find(id => id !== player.id);
-          if (partnerId && (vote1 === partnerId || vote2 === partnerId)) {
-            pointsGained += 2;
-          }
-          // 2. 市民にバレなかったか？
-          const citizens = playerList.filter(p => !linkPairIds.includes(p.id));
-          const gotVotedByCitizen = citizens.some(c => c.vote?.player1 === player.id || c.vote?.player2 === player.id);
-          if (!gotVotedByCitizen) {
-            pointsGained += 1;
+          // スパイ側
+          if (!anyCitizenGuessedSpies && isLinkSuccessful) {
+            // スパイ成功：市民に見破られず、かつスパイ同士がリンク成功
+            pointsGained = 2;
+          } else {
+            // スパイ失敗（見破られた、またはリンク失敗）
+            pointsGained = 0;
           }
         } else {
-          // 市民の得点
-          // リンクペアを当てたか？
-          const p1Correct = linkPairIds.includes(vote1);
-          const p2Correct = linkPairIds.includes(vote2);
-          if (p1Correct && p2Correct) {
-            pointsGained += 2;
-          } else if (p1Correct || p2Correct) {
-            pointsGained += 1;
+          // 市民側
+          if (successfulCitizenIds.includes(player.id)) {
+            // 見破り成功した市民
+            pointsGained = 2;
+          } else if (!anyCitizenGuessedSpies && !isLinkSuccessful) {
+            // 通信失敗：誰も見破れず、スパイ同士もリンク失敗
+            pointsGained = 1;
+          } else {
+            // それ以外
+            pointsGained = 0;
           }
         }
 
@@ -328,7 +349,11 @@ function App() {
     }
 
     // 2. リンクペアの決定 (接続中プレイヤーからランダムに2名)
-    const shuffledPlayerIds = activePlayers.map(p => p.id).sort(() => Math.random() - 0.5);
+    const shuffledPlayerIds = activePlayers.map(p => p.id);
+    for (let i = shuffledPlayerIds.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffledPlayerIds[i], shuffledPlayerIds[j]] = [shuffledPlayerIds[j], shuffledPlayerIds[i]];
+    }
     const linkPairs = [shuffledPlayerIds[0], shuffledPlayerIds[1]];
 
     // 3. プレイヤーの初期設定オブジェクト

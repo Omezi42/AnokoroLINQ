@@ -30,43 +30,53 @@ export const Results: React.FC<ResultsProps> = ({
     let pointsGained = 0;
     const breakdown: string[] = [];
 
-    const vote1 = player.vote?.player1;
-    const vote2 = player.vote?.player2;
+    if (linkPairIds.length < 2) return { pointsGained: 0, breakdown: ["エラー: リンクペアが正しく設定されていません"] };
+    const [spyAId, spyBId] = linkPairIds;
+    const spyA = players[spyAId];
+    const spyB = players[spyBId];
+
+    // スパイ同士が互いを指名できているか？
+    const spyAVotedSpyB = spyA?.vote?.player1 === spyBId || spyA?.vote?.player2 === spyBId;
+    const spyBVotedSpyA = spyB?.vote?.player1 === spyAId || spyB?.vote?.player2 === spyAId;
+    const isLinkSuccessful = spyAVotedSpyB && spyBVotedSpyA;
+
+    // 各市民がスパイを見破ったか？
+    const successfulCitizenIds: string[] = [];
+    playerList.forEach((p) => {
+      if (linkPairIds.includes(p.id)) return;
+      const v1 = p.vote?.player1;
+      const v2 = p.vote?.player2;
+      const correctCount = (v1 === spyAId || v1 === spyBId ? 1 : 0) + (v2 === spyAId || v2 === spyBId ? 1 : 0);
+      if (correctCount === 2) {
+        successfulCitizenIds.push(p.id);
+      }
+    });
+
+    const anyCitizenGuessedSpies = successfulCitizenIds.length > 0;
 
     if (isLink) {
-      // リンクペアの得点
-      // 1. 相方を指名できたか？
-      const partnerId = linkPairIds.find(id => id !== player.id);
-      if (partnerId && (vote1 === partnerId || vote2 === partnerId)) {
-        pointsGained += 2;
-        breakdown.push("相方を発見 (+2点)");
+      if (anyCitizenGuessedSpies) {
+        breakdown.push("市民に見破られたため (+0点)");
+        pointsGained = 0;
       } else {
-        breakdown.push("相方を発見できず (+0点)");
-      }
-
-      // 2. 市民にバレなかったか？
-      const citizens = playerList.filter(p => !linkPairIds.includes(p.id));
-      const gotVotedByCitizen = citizens.some(c => c.vote?.player1 === player.id || c.vote?.player2 === player.id);
-      if (!gotVotedByCitizen) {
-        pointsGained += 1;
-        breakdown.push("市民から正体隠蔽 (+1点)");
+        if (isLinkSuccessful) {
+          breakdown.push("リンク成功 & 隠蔽成功 (+2点)");
+          pointsGained = 2;
+        } else {
+          breakdown.push("リンク失敗 & 隠蔽成功 (+0点)");
+          pointsGained = 0;
+        }
       }
     } else {
-      // 市民の得点
-      const p1Correct = linkPairIds.includes(vote1);
-      const p2Correct = linkPairIds.includes(vote2);
-      
-      if (p1Correct && p2Correct) {
-        pointsGained += 2;
-        breakdown.push("リンクペアを完全的中 (+2点)");
-      } else if (p1Correct || p2Correct) {
-        pointsGained += 1;
-        const correctName = p1Correct 
-          ? players[vote1]?.name 
-          : players[vote2]?.name;
-        breakdown.push(`片方 (${correctName}) を的中 (+1点)`);
+      if (successfulCitizenIds.includes(player.id)) {
+        breakdown.push("スパイを完全特定 (+2点)");
+        pointsGained = 2;
+      } else if (!anyCitizenGuessedSpies && !isLinkSuccessful) {
+        breakdown.push("通信失敗ボーナス (+1点)");
+        pointsGained = 1;
       } else {
         breakdown.push("的中なし (+0点)");
+        pointsGained = 0;
       }
     }
 
@@ -200,7 +210,18 @@ export const Results: React.FC<ResultsProps> = ({
                 )}
               </div>
               
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+              {/* ヒントの表示 */}
+              <div className="hints" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '6px', flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: 600 }}>出したヒント:</span>
+                <span style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                  1周目: <strong style={{ color: 'var(--text-main)' }}>{p.hints?.round1 || '未記入'}</strong>
+                </span>
+                <span style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                  2周目: <strong style={{ color: 'var(--text-main)' }}>{p.hints?.round2 || '未記入'}</strong>
+                </span>
+              </div>
+
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '6px' }}>
                 内訳: {breakdown.join(' / ')}
               </div>
             </div>
