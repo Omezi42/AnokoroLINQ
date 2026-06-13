@@ -42,6 +42,21 @@ function App() {
   const [isJoining, setIsJoining] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string>('');
   const [showToast, setShowToast] = useState<boolean>(false);
+  const [isBanned, setIsBanned] = useState<boolean>(false);
+
+  // ブラックリストのリアルタイム監視
+  useEffect(() => {
+    if (!userId) return;
+    const blacklistRef = ref(db, `blacklist/${userId}`);
+    const unsubscribe = onValue(blacklistRef, (snapshot) => {
+      if (snapshot.val() === true) {
+        setIsBanned(true);
+      } else {
+        setIsBanned(false);
+      }
+    });
+    return () => unsubscribe();
+  }, [userId]);
 
   const showToastNotification = (message: string) => {
     setToastMessage(message);
@@ -505,7 +520,17 @@ function App() {
       </header>
 
       <main style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-        {!roomCode ? (
+        {isBanned ? (
+          <div className="setup-screen glass-panel animate-pulse-glow" style={{ borderColor: 'var(--color-accent)' }}>
+            <h2 style={{ color: 'var(--color-accent)' }}>アクセス制限</h2>
+            <p style={{ fontSize: '0.95rem', color: 'var(--text-main)', textAlign: 'center', margin: '20px 0', lineHeight: '1.6' }}>
+              このアカウントは管理者によってアクセスが制限（BAN）されているため、ゲームをプレイできません。
+            </p>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+              ユーザーID: <code>{userId}</code>
+            </p>
+          </div>
+        ) : !roomCode ? (
           /* セットアップ画面 (部屋作成・参加) */
           <div className="setup-screen glass-panel animate-pulse-glow">
             <h2>ゲームに参加</h2>

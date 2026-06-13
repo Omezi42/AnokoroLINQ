@@ -1,5 +1,9 @@
 {
   "rules": {
+    "blacklist": {
+      ".read": true,
+      ".write": true
+    },
     "rooms": {
       "$roomId": {
         ".read": true,
